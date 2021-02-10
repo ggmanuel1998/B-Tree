@@ -3,260 +3,328 @@
 #define SOURCE_B_LINK_HPP_
 
 #include <utility>
+#include <vector>
+#include <algorithm>
+#include <iostream>
 using namespace std;
 
-namespace EDA {
+template <class T>
+bool comparacion(T* y,T* x)
+{
+    return *y<*x;
+}
 
-namespace Concurrent {
-//////////////////////
-template <std::size_t B, typename Type>
+namespace EDA::Concurrent {
+    template <size_t B,typename Type>
 
-class BLinkTree {
-    struct node {
+    class Nodo{
+    public:
 
-        long ele[4];
-        long child[4];
-        node *next;
+        bool Hoja;
+        Nodo* Lista_linkz;
+        int m;
+        typedef Type data_type;
+        mutex Nodo_mutex;
+        vector<data_type*> clave;
+        vector<Nodo*> ptr;
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        Nodo()
+        {
+            m=B;
+            Lista_linkz=nullptr;
+            Hoja=true;
+        }
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        void insert(const data_type& value)
+        {
+            auto* p= new data_type;
+            *p=value;
+            clave.push_back(p);
+        }
+    };
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    template <size_t B, typename Type>
+    class BLinkTree {
+    public:
+
+        typedef Type data_type;
+        mutex auxiliar_m;
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        BLinkTree()
+        {
+            root=NULL;
+        }
+        ~BLinkTree() {}
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        size_t size() const
+        {
+            return B;
+        }
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        bool empty() const
+        {
+            if(!root||root->clave.empty())
+                return true;
+            return false;
+        }
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        void insert(const data_type& value)
+        {
+            data_type t2=value;
+            vector<Nodo<B,data_type>*> kam;
+            Nodo<B,data_type>* rt;
+            search1(rt, kam, value);
+            auxiliar_m.lock();
+            if(root==NULL)
+            {
+                root= new Nodo<B,data_type>;
+                root->insert(value);
+                auxiliar_m.unlock();
+                return;
+            }
+            auxiliar_m.unlock();
+
+            for(int i=0;i<rt->clave.size();i++)
+            {
+                if(*rt->clave[i]==value)
+                    return;
+            }
+            Nodo<B,data_type>* to_be;
+            while(true)
+            {
+                unique_lock<mutex> w_lock(rt->Nodo_mutex);
+
+                if(kam.empty()&&rt!=root)//overflow
+                {
+                    Nodo<B,data_type>* aux_Nodo=root;
+                    while (aux_Nodo!=rt) {
+                        if(rt->clave[0]>aux_Nodo->clave.back()&&aux_Nodo->Lista_linkz)
+                            aux_Nodo=aux_Nodo->Lista_linkz;
+                        else
+                        {
+                            int rn = aux_Nodo->clave.size();
+                            for (int i = 0; i < rn; i++) {
+                                if (*rt->clave[0] < *aux_Nodo->clave[i]) {
+                                    kam.push_back(aux_Nodo);
+                                    aux_Nodo = aux_Nodo->ptr[i];
+                                    break;
+                                }
+                                if (i == rn - 1)
+                                    kam.push_back(aux_Nodo);
+                                if(!aux_Nodo->ptr.empty())
+                                    aux_Nodo = aux_Nodo->ptr[i + 1];
+                            }
+                        }
+                    }
+                }
+
+                while(t2>*rt->clave.back()&&rt->Lista_linkz)
+                {
+                    w_lock.unlock();
+                    rt=rt->Lista_linkz;
+                    w_lock.release();
+                    w_lock=unique_lock<mutex>(rt->Nodo_mutex);
+                }
+                if(rt->clave.size()==(rt->m)-1)
+                {
+                    int goes_up=((rt->m)/2);
+                    if(rt->m%2==0)
+                        goes_up++;
+                    auto* p= new data_type;
+                    *p=t2;
+                    rt->clave.push_back(p);
+
+                    sort(rt->clave.begin(),rt->clave.end(),comparacion<data_type>);
+                    if(rt->Hoja)
+                    {
+                        auto* temp = new Nodo<B,data_type>;
+                        vector<data_type*> temp_1;
+                        vector<data_type*> temp2;
+                        int count_aux=goes_up;
+                        t2=*rt->clave[goes_up];
+                        while((rt->m)>count_aux)
+                        {
+                            temp_1.push_back(rt->clave[count_aux]);
+                            count_aux++;
+                        }
+                        temp->clave=temp_1;
+                        count_aux=0;
+                        while(count_aux<goes_up)
+                        {
+                            temp2.push_back(rt->clave[count_aux]);
+                            count_aux++;
+                        }
+                        rt->clave=temp2;
+                        temp->Lista_linkz=rt->Lista_linkz;
+                        rt->Lista_linkz=temp;
+                        if(rt==root)
+                        {
+                            auto* temp_root = new Nodo<B,data_type>;
+                            temp_root->insert(t2);
+                            temp_root->ptr.push_back(rt);
+                            temp_root->ptr.push_back(temp);
+                            return;
+                        }
+                        to_be=temp;
+
+                        if(!kam.empty())
+                        {
+                            rt=kam.back();
+                            kam.pop_back();
+                        }
+                    }
+                    else
+                    {
+                        int index;
+                        for(int i=0;i<rt->clave.size();i++)
+                        {
+                            if(*rt->clave[i]==t2)
+                                index=i;
+                        }
+                        vector<Nodo<B,data_type>*> pun_de;
+                        for(int i=0;i<rt->ptr.size();i++)
+                        {
+                            if(i==index+1)
+                                pun_de.push_back(to_be);
+                            pun_de.push_back(rt->ptr[i]);
+                        }
+
+                        auto* temp = new Nodo<B,data_type>;
+                        vector<data_type*> temp_1;
+                        vector<data_type*> temp2;
+                        int count_aux=goes_up;
+                        t2=*rt->clave[goes_up];
+                        temp->Hoja=false;
+                        count_aux++;
+
+                        while((rt->m)>count_aux)
+                        {
+                            temp_1.push_back(rt->clave[count_aux]);
+                            count_aux++;
+                        }
+                        temp->clave=temp_1;
+                        count_aux=0;
+
+                        while(count_aux<goes_up)
+                        {
+                            temp2.push_back(rt->clave[count_aux]);
+                            count_aux++;
+                        }
+
+                        rt->clave=temp2;
+                        temp->Lista_linkz=rt->Lista_linkz;
+                        rt->Lista_linkz=temp;
+                        to_be=temp;
+
+                        if(rt==root)
+                        {
+                            auto* temp_root = new Nodo<B,data_type>;
+                            temp_root->insert(t2);
+                            temp_root->ptr.push_back(rt);
+                            temp_root->ptr.push_back(temp);
+
+                            return;
+                        }
+
+                        rt=kam.back();
+                        kam.pop_back();
+
+                    }
+                    w_lock.unlock();
+                }
+                else
+                {
+                    auto* p= new data_type;
+                    *p=t2;
+                    rt->clave.push_back(p);
+                    sort(rt->clave.begin(),rt->clave.end(),comparacion<data_type>);
+
+                    if(!rt->Hoja)
+                    {
+                        int index;
+                        for(int i=0;i<rt->clave.size();i++)
+                        {
+                            if(*rt->clave[i]==t2)
+                                index=i;
+                        }
+                        vector<Nodo<B,data_type>*> pun_de;
+                        for(int i=0;i<rt->ptr.size();i++)
+                        {
+                            if(i==index+1)
+                                pun_de.push_back(to_be);
+                            pun_de.push_back(rt->ptr[i]);
+                        }
+                    }
+                    w_lock.unlock();
+                    return;
+                }
+            }
+        }
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        bool search(const data_type& value) const
+        {
+            if (empty())
+                return false;
+            Nodo<B,data_type>* rt;
+            search2(rt,value);
+            rt = root;
+            for(int i=0;i<rt->clave.size();i++)
+            {
+                if(*rt->clave[i]==value)
+                    return true;
+            }
+            return false;
+        }
+        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    private:
+        Nodo<B,data_type>* root;
+
+        void search2(Nodo<B,data_type>* &rt, data_type value) const
+        {
+            rt = root;
+            while (!(rt->Hoja)) {
+                if(value>*rt->clave.back()&&rt->Lista_linkz)
+                    rt=rt->Lista_linkz;
+                else{
+                    int rn = rt->clave.size();
+                    for (int i = 0; i < rn; i++) {
+                        if (value < *rt->clave[i]) {
+                            rt = rt->ptr[i];
+                            break;
+                        }
+                        if (i == rn - 1)
+                            rt = rt->ptr[i + 1];
+                    }
+                }
+            }
+        }
+        void search1(Nodo<B,data_type>* &rt, std::vector<Nodo<B,data_type>*> &kam, data_type value) const {
+            rt = root;
+            while (!rt->Hoja) {
+                if(value>*rt->clave.back()&&rt->Lista_linkz)
+                    rt=rt->Lista_linkz;
+                else{
+                    int rn = rt->clave.size();
+                    for (int i = 0; i < rn; i++) {
+                        if (value < *rt->clave[i]) {
+                            kam.push_back(rt);
+                            rt = rt->ptr[i];
+                            break;
+                        }
+                        if (i == rn - 1)
+                            kam.push_back(rt);
+                        rt = rt->ptr[i + 1];
+                    }
+                }
+            }
+        }
+
 
     };
 
- public:
 
-    node *tree[10][10];
-    int count[10];
-    int leaf;
-    int path[10];
-    node *head;
-
-  typedef Type data_type;
-
-  BLinkTree() {
-
-      leaf=-1;                                      //no leaf
-      for(int i=0;i<10;i++)
-      {
-          count[i]=-1;                                                                                       //cont
-          path[i]=-1;                                                                                        //para el cam
-      }
-
-  }
-
-  std::size_t size() const {}
-
-  bool empty() const {}
-
-    node* create_node()
-    {
-        node* n;
-        n=new node;                                                         //resv mem
-        for(int i=0;i<4;i++)
-        {
-            n->ele[i]=-1;
-            n->child[i]=-1;
-        }
-        n->next=NULL;
-        return n;                                                           //r n
-    }
-
-    void search_2(int key)                               //b hoja
-    {
-        int i,j,temp;
-        path[0]=0;
-        if(leaf)
-        {
-            j=0;
-            for(i=0;i<leaf;i++)
-            {
-                temp=search_node(tree[i][j],key);
-                path[i+1]=temp;
-                j=temp;
-            }
-        }
-    }
-
-    int search_node(node *node1,long key)
-    {
-        if(key<=node1->ele[0])                                  // caso cabeza
-            return node1->child[0];
-        for(int i=1;i<4;i++)
-        {
-            if((key>=node1->ele[i]) && (key<node1->ele[i+1]))
-                return node1->child[i];
-            else if(node1->ele[i+1]==-1)
-                return node1->child[i];
-        }
-        return 0;
-    }
-
-
-    void search(const data_type& value) {
-        int flag=0,                                                                                                                                            i;
-        node *node1;                                                        //auz
-        search_2(value);
-        node1=tree[leaf][path[leaf]];
-        for(i=0;node1->ele[i]!=-1;i++)
-            if(node1->ele[i]==value)
-            {
-                flag=1;
-                break;
-            }
-        std::cout<<"\n :";//
-        for(i=0;path[i]!=-1;i++)
-            std::cout<<path[i]<<"->";
-        if(flag)
-            std::cout<<"\nElemento encontrado\n";
-        else
-            std::cout<<"\nNo se encontro\n";
-  }
-
-
-  void insert_node(node *node1,int key)
-    {
-        int flag=0,count=-1,i,j,x,y,l;
-        node *newnode,*parent;
-
-        for(i=0;i<4;i++)
-            if(node1->ele[i]!=-1)
-                ++count;
-        i=0;
-        while(!flag&&node1->ele[i]!=-1)
-        {
-            if(node1->ele[i]>key)
-            {
-                flag=1;
-                for(int j=count;j>=i;j--)
-                    node1->ele[j+1]=node1->ele[j];
-                node1->ele[i]=key;
-            }
-            i++;
-        }
-        if(!flag)
-            node1->ele[count+1]=key;
-        if(node1->ele[0]==key)
-        {
-            for(i=leaf-1;i>=0;i--)
-            {
-                x=path[i+1];
-                if(tree[i][path[i]]->ele[x]>key)
-                    tree[i][path[i]]->ele[x]=key;
-                else
-                    insert_node(tree[i][x],key);
-            }
-        }
-
-        for(i=0;i<=count+1;i++)
-            std::cout<<"\t\t"<<node1->ele[i];
-    }
-
-
-  void insert(const data_type& value) {
-      int n,parent;
-      node *first_node;
-      if(leaf==-1)
-      {
-          first_node=create_node();
-          tree[0][0]=first_node;
-          leaf++;
-          count[0]++;
-          first_node->ele[0]=value;
-          head=first_node;
-      }
-      else if(leaf==0)
-      {
-          if(nodefull(tree[0][0]))
-          {
-              path[leaf]=0;
-              split(tree[0][0]);
-              insert(value);
-          }
-          else
-              insert_node(tree[0][0],value);
-      }
-      else
-      {
-          search(value);
-          n=path[leaf];
-          parent=path[leaf-1];
-          if((nodefull(tree[leaf][n])))
-          {
-              split(tree[leaf][n]);
-              insert(value);
-          }
-          else
-              insert_node(tree[leaf][n],value);
-      }
-  }
-
-
-  void remove(const data_type& value) {
-      ///
-  }
-
-  int nodefull(node* node1)
-    {
-        if(node1->ele[3]!=-1) return 1;
-        else     return 0;
-    }
-
-
-    void split(node *oldnode)
-    {
-        node *newnode,*parent,*n1,*n2;
-        int i,j,k,n,t,x,y,pos;
-        newnode=create_node();
-        newnode->ele[0]=oldnode->ele[2];
-        newnode->ele[1]=oldnode->ele[3];
-        oldnode->ele[2]=-1;
-        oldnode->ele[3]=-1;
-        t=count[leaf];
-        n=path[leaf];
-        for(i=t,j=t+1;i>n;i--,j--)
-            tree[leaf][j]=tree[leaf][i];
-        newnode->next=tree[leaf][n]->next;
-        tree[leaf][n]->next=newnode;
-        tree[leaf][n+1]=newnode;
-        count[leaf]++;
-        x=leaf;
-        if(count[leaf]+1==1) t=1;
-        else
-            t=log(count[leaf]+1)/log(2);
-        if(t!=leaf)
-        {
-            ++leaf;
-            count[leaf]=count[x];
-            for(i=0;i<=count[leaf];i++)
-                std::swap(tree[leaf][i],tree[x][i]);
-        }
-        for(i=leaf-1;i>=0;i--) count[i]=-1;
-        for(i=t,j=i-1;i>0;i--,j--)
-        {
-            for(k=0;k<=(count[i])/3;k++)
-            {
-                n1=tree[i][2*k];
-                n2=tree[i][(2*k)+1];
-                newnode=create_node();
-                count[j]++;
-                tree[j][count[j]]=newnode;
-                newnode->ele[0]=n1->ele[0];
-                newnode->child[0]=2*k;
-                newnode->ele[1]=n2->ele[0];
-                newnode->child[1]=(2*k)+1;
-            }
-            if(count[i]!=1 && count[i]%2==0)
-            {
-                n2=tree[i][count[i]];
-                for(y=0;n2->ele[y]!=-1;y++);
-                newnode->ele[2]=n2->ele[0];
-                newnode->child[2]=count[i];
-            }
-        }
-    }
-
-private:
-  data_type* data_;
-};
-
-}  // namespace Concurrent
 }  // namespace EDA
-
 #endif  // SOURCE_B_LINK_HPP_
