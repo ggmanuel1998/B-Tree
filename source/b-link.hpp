@@ -8,7 +8,7 @@ using namespace std;
 namespace EDA {
 
 namespace Concurrent {
-//////
+//////////////////////
 template <std::size_t B, typename Type>
 
 class BLinkTree {
