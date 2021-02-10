@@ -4,10 +4,13 @@
 
 #include <utility>
 using namespace std;
+
 namespace EDA {
+
 namespace Concurrent {
 ///
 template <std::size_t B, typename Type>
+
 class BLinkTree {
     struct node {
 
@@ -16,6 +19,7 @@ class BLinkTree {
         node *next;
 
     };
+
  public:
 
     node *tree[10][10];
@@ -28,15 +32,14 @@ class BLinkTree {
 
   BLinkTree() {
 
-      leaf=-1;
+      leaf=-1;                                      //no leaf
       for(int i=0;i<10;i++)
       {
-          count[i]=-1;
-          path[i]=-1;
+          count[i]=-1;                                                                                       //cont
+          path[i]=-1;                                                                                        //para el cam
       }
-  }
 
-  ~BLinkTree() {}
+  }
 
   std::size_t size() const {}
 
@@ -45,18 +48,17 @@ class BLinkTree {
     node* create_node()
     {
         node* n;
-        n=new node;
+        n=new node;                                                         //resv mem
         for(int i=0;i<4;i++)
         {
             n->ele[i]=-1;
             n->child[i]=-1;
         }
         n->next=NULL;
-        return n;
+        return n;                                                           //r n
     }
 
-
-    void search_2(int key)
+    void search_2(int key)                               //b hoja
     {
         int i,j,temp;
         path[0]=0;
@@ -74,7 +76,7 @@ class BLinkTree {
 
     int search_node(node *node1,long key)
     {
-        if(key<=node1->ele[0])
+        if(key<=node1->ele[0])                                  // caso cabeza
             return node1->child[0];
         for(int i=1;i<4;i++)
         {
@@ -87,9 +89,9 @@ class BLinkTree {
     }
 
 
-    void search(const data_type& value)  {
-        long flag=0,i;
-        node *node1;
+    void search(const data_type& value) {
+        int flag=0,                                                                                                                                            i;
+        node *node1;                                                        //auz
         search_2(value);
         node1=tree[leaf][path[leaf]];
         for(i=0;node1->ele[i]!=-1;i++)
@@ -98,13 +100,13 @@ class BLinkTree {
                 flag=1;
                 break;
             }
-        cout<<"\n :";//
+        std::cout<<"\n :";//
         for(i=0;path[i]!=-1;i++)
-            cout<<path[i]<<"->";
+            std::cout<<path[i]<<"->";
         if(flag)
-            cout<<"\nElemento encontrado\n";
+            std::cout<<"\nElemento encontrado\n";
         else
-            cout<<"\nNo se encontro\n";
+            std::cout<<"\nNo se encontro\n";
   }
 
 
@@ -112,6 +114,7 @@ class BLinkTree {
     {
         int flag=0,count=-1,i,j,x,y,l;
         node *newnode,*parent;
+
         for(i=0;i<4;i++)
             if(node1->ele[i]!=-1)
                 ++count;
@@ -142,7 +145,7 @@ class BLinkTree {
         }
 
         for(i=0;i<=count+1;i++)
-            cout<<"\t\t"<<node1->ele[i];
+            std::cout<<"\t\t"<<node1->ele[i];
     }
 
 
